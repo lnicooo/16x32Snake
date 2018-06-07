@@ -64,13 +64,19 @@ ISR(TIMER1_COMPA_vect){
 	//move snake
 	snek_shift();
 
+	//draw food
+	buffer[food.pix_y] |= ((uint32_t)1 << food.pix_x); 
+
 	for(x=0;x<snek_size;x++){
 		
-		buffer[snek[x].pix_y] |= (uint32_t)((uint32_t)1 << snek[x].pix_x);
+		buffer[snek[x].pix_y] |= ((uint32_t)1 << snek[x].pix_x);
 
 	}
 
-	
+	if(snek[0].pix_x == food.pix_x && snek[0].pix_y == food.pix_y){
+		snek_gen_food();
+		snek_size++;
+	}
 
 }
 
@@ -94,11 +100,11 @@ int main(){
 	uint8_t y;
 	uint8_t x;
 
-	srand(3);
 	timer_init();
   uart_init();
 	snek_init(5,4,4);
 	mma_init();
+	snek_gen_food();
 
   stdout = &uart_output;
   stdin  = &uart_input;
@@ -113,22 +119,22 @@ int main(){
 		//send rows and columns to display
 		for(y=0;y<16;y++){
 
-      for(x=0;x<32;x++){
+			for(x=0;x<32;x++){
 
-        if(buffer[y] & ((uint32_t)1<<x)){
+				if(buffer[y] & ((uint32_t)1<<x)){
 
-    			PORTB &= ~(1<<color);
+					PORTB &= ~(1<<color);
 
-    		}
-    		else{
+				}
+				else{
 
-    			PORTB |= (1<<color);
+					PORTB |= (1<<color);
 
-    		}
+				}
 
-    		ck_tick();
+				ck_tick();
 
-      }
+			}
 
 			PORTB |= (1<<OE);
 

@@ -1,8 +1,10 @@
 #include "snek.h"
 
+
 struct snek_pix snek[MAX_SIZE];
 volatile uint8_t actual_dir;
 volatile uint8_t snek_size;
+struct food_pix food;
 
 void snek_init(uint8_t init_size, uint8_t x, uint8_t y){
     uint8_t i;
@@ -48,6 +50,7 @@ void snek_shift(){
             snek[0].pix_x = snek[1].pix_x - 1;
         break;
     }
+
     for(i=0;i<snek_size;i++){
         if(snek[i].pix_x >= 32)
             snek[i].pix_x = 0;
@@ -69,7 +72,11 @@ void snek_change_dir(uint8_t dir){
 
 }
 
-void add_eat(){
 
-    snek_size++;
+void snek_gen_food(){
+
+    food.pix_x = rand()%33;
+
+    food.pix_y = rand()%17;
+
 }
