@@ -1,14 +1,19 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
 
+#include "LCD-fonts/8x8_horizontal_LSB_2.h"
 #include "uart/uart.h"
 #include "mma8452/mma8452.h"
 #include "snek/snek.h"
 
 volatile uint32_t buffer[16];
+
+bool pause = false;
+bool end = false;
 
 #define OE PB0
 #define R PB1
@@ -18,11 +23,15 @@ volatile uint32_t buffer[16];
 
 volatile char color;
 
+volatile time=0;
+
 void timer_init(){
+
+	//Timer 1;
 
     TCCR1B |= (1 << WGM12) |(1 << CS10) |(1 << CS12); //CTC Mode no prescaler
 
-		TCNT1 = 0;
+	TCNT1 = 0;
 
     OCR1A = 1400;
 
@@ -44,42 +53,6 @@ void ck_latch(){
 	PORTB |= (1<<SCL);
 }
 
-
-ISR(TIMER1_COMPA_vect){
-  uint8_t x;
-
-	//get orientation
-	x = mma_get_PL();
-
-	if(x != 0x40){
-		//snek change diraction
-		snek_change_dir(x);
-	}
-
-	//snake clear secreen
-	for(x=0;x<16;x++){
-		buffer[x] = (uint32_t)0;
-	}
-
-	//move snake
-	snek_shift();
-
-	//draw food
-	buffer[food.pix_y] |= ((uint32_t)1 << food.pix_x); 
-
-	for(x=0;x<snek_size;x++){
-		
-		buffer[snek[x].pix_y] |= ((uint32_t)1 << snek[x].pix_x);
-
-	}
-
-	if(snek[0].pix_x == food.pix_x && snek[0].pix_y == food.pix_y){
-		snek_gen_food();
-		snek_size++;
-	}
-
-}
-
 void changeColor(){
 
   if(color==R){
@@ -92,6 +65,87 @@ void changeColor(){
   }
 }
 
+
+ISR(TIMER1_COMPA_vect){
+  	uint8_t x;
+
+	if(mma_get_tap()){
+		if(pause == true) 
+			pause = false;	
+		else
+			pause = true;
+	}
+
+	if(!pause || !end){
+		//get orientation
+		x = mma_get_PL();
+
+		if(x != 0x40){
+			//snek change diraction
+			snek_change_dir(x);
+		}
+
+		//snake clear secreen
+		for(x=0;x<16;x++){
+			buffer[x] = (uint32_t)0;
+		}
+
+		//move snake
+		snek_shift();
+
+		//draw food
+		buffer[food.pix_y] |= ((uint32_t)1 << food.pix_x); 
+
+		//draw snake
+		for(x=0;x<snek_size;x++){
+
+			buffer[snek[x].pix_y] |= ((uint32_t)1 << snek[x].pix_x);
+
+		}
+		
+		if(snek[0].pix_x == food.pix_x && snek[0].pix_y == food.pix_y){
+			snek_gen_food();
+			snek_size++;
+		}
+
+		if(snek[0].pix_x<0 || snek[0].pix_x>32 || snek[0].pix_y<0 || snek[0].pix_y>16){
+			end = true;
+		}
+			
+	}
+
+	else{
+
+		for(x=0;x<16;x++){
+			buffer[x] = (uint32_t)0;
+		}
+
+		for(x=4;x<12;x++){
+			buffer[x] |= ((uint32_t)pgm_read_byte(&font['|'][x-4])<<10);
+			buffer[x] |= ((uint32_t)pgm_read_byte(&font['|'][x-4])<<14);
+			
+  		}
+	}
+	
+	if(end){
+		
+		for(x=4;x<12;x++){
+			buffer[x] |= ((uint32_t)pgm_read_byte(&font['E'][x-4])<<0);
+			buffer[x] |= ((uint32_t)pgm_read_byte(&font['n'][x-4])<<8);
+			buffer[x] |= ((uint32_t)pgm_read_byte(&font['d'][x-4])<<16);
+			
+  		}
+	}
+
+	if(snek_size > MAX_SIZE){
+        snek_size = 3;
+		fase++;
+
+    }
+}
+
+
+
 int main(){
 	//  setup OUTPUTS
 	DDRD = 0xF0;
@@ -101,50 +155,40 @@ int main(){
 	uint8_t x;
 
 	timer_init();
-  uart_init();
-	snek_init(5,4,4);
+	uart_init();
+	snek_init(10,4,4);
 	mma_init();
 	snek_gen_food();
 
-  stdout = &uart_output;
-  stdin  = &uart_input;
+	stdout = &uart_output;
+	stdin  = &uart_input;
 
-  printf("Hey\n");
 
-  PORTB |= (1<<R);
-  color=G;
 
-	while(1){
+	printf("Hey\n");
 
-		//send rows and columns to display
-		for(y=0;y<16;y++){
+	PORTB |= (1<<R);
+	color=G;
 
-			for(x=0;x<32;x++){
-
-				if(buffer[y] & ((uint32_t)1<<x)){
-
-					PORTB &= ~(1<<color);
-
+	actual_dir = LEFT;
+		while(1){
+			//send rows and columns to display
+			for(y=0;y<16;y++){
+				for(x=0;x<32;x++){
+					if(buffer[y] & ((uint32_t)1<<x)){
+						PORTB &= ~(1<<color);
+					}
+					else{
+						PORTB |= (1<<color);
+					}
+					ck_tick();
 				}
-				else{
-
-					PORTB |= (1<<color);
-
-				}
-
-				ck_tick();
-
+				PORTB |= (1<<OE);
+				PORTD = (y<<4);
+				ck_latch();
+				PORTB &= ~(1<<OE);
 			}
 
-			PORTB |= (1<<OE);
-
-			PORTD = (y<<4);
-
-			ck_latch();
-
-			PORTB &= ~(1<<OE);
 		}
-
-	}
 
 }

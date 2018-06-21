@@ -64,5 +64,7 @@ void mma_outrate();
 uint8_t mma_available();
 void mma_scale();
 void mma_setpl();
+void mma_settap();
+uint8_t mma_get_tap();
 void mma_read_register(uint8_t reg);
 void mma_write_register(uint8_t reg, uint8_t data);

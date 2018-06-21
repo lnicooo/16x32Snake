@@ -26,6 +26,7 @@ extern struct snek_pix snek [MAX_SIZE];
 extern volatile uint8_t snek_size;
 extern volatile uint8_t actual_dir;
 
+
 void snek_init(uint8_t init_size, uint8_t x, uint8_t y);
 void snek_shift();
 void snek_change_dir(uint8_t dir);

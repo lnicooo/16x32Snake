@@ -1,12 +1,11 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <stdio.h>
-//#include "../TWI/TWI_Master.h"
 #include "../i2c/i2cmaster.h"
 
 #include "mma8452.h"
 
-//v0.01 only read orientation
+//v0.02  read taps and orientation
 uint8_t twi_buffer[4];
 
 void mma_init(){   
@@ -22,6 +21,8 @@ void mma_init(){
     mma_outrate();
     //set PORTRAIT/LANDSCAPE PL_CFG
     mma_setpl();
+    //set DOUBLE TAP DETECTION 
+    mma_settap();
     //activate on CTRL_REG1
     mma_activate();
 }
@@ -38,6 +39,16 @@ uint8_t mma_get_PL(){
 
         return ((twi_buffer[1] & 0x6) >> 1);
     
+}
+
+uint8_t mma_get_tap(){
+    mma_read_register(PULSE_SRC);
+
+    if(twi_buffer[1] & 0x80)
+        return (twi_buffer[1] & 0x7F);
+    else
+        return 0;
+
 }
 
 void mma_standby(){
@@ -85,9 +96,19 @@ void mma_setpl(){
     mma_write_register(PL_COUNT, 0x30);
 }
 
-void mma_read_register(uint8_t reg){
+void mma_settap(){
+    //set tap on z axis
+    mma_write_register(PULSE_THSZ,0x31);//2g
+    //set double tap on z axis
+    mma_write_register(PULSE_CFG, 0x70);
+    // 800hz 
+    mma_write_register(PULSE_TMLT,0x30);
+    mma_write_register(PULSE_LTCY,0xA0);
+    mma_write_register(PULSE_WIND, 0xFF);
 
-    
+}
+
+void mma_read_register(uint8_t reg){
 
     i2c_start_wait(SLA_W);
     i2c_write(reg);
@@ -95,41 +116,10 @@ void mma_read_register(uint8_t reg){
     twi_buffer[1] = i2c_readNak();
     i2c_stop();
 
-    /*
-    twi_buffer[0] = SLA_W;
-    twi_buffer[1] = reg;
-    if ( !TWI_Transceiver_Busy() ) {
-
-        TWI_Start_Transceiver_With_Data(twi_buffer, 2); 
-    
-        twi_buffer[0] = SLA_R;
-    
-        TWI_Start_Transceiver_With_Data(twi_buffer, 2); 
-        
-       if(TWI_Get_Data_From_Transceiver(twi_buffer, 2)){
-           printf("Read\n");
-       } 
-
-    }
-
-    int i;
-    for(i=0;i<4;i++){
-        printf("%x |",twi_buffer[i]);
-    }
-    printf("\n");
-    */
-
 }
 
 void mma_write_register(uint8_t reg, uint8_t data){
-    /*
-    twi_buffer[0] = SLA_W;
-    twi_buffer[1] = reg;
-    twi_buffer[2] = data;
-    if ( !TWI_Transceiver_Busy() ) {
-        TWI_Start_Transceiver_With_Data(twi_buffer, 3); 
-    }
-    */
+
    i2c_start_wait(SLA_W);
    i2c_write(reg);
    i2c_write(data);
