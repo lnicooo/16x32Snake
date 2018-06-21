@@ -19,7 +19,9 @@
 
 volatile uint32_t buffer[16];
 
-uint8_t ee_max_points EEMEM = 0;
+uint16_t ee_max_points EEMEM = 0;
+uint16_t points;
+
 bool pause = false;
 bool end = false;
 
@@ -31,7 +33,7 @@ void timer_init(){
 
 	//Timer 1;
 
-    TCCR1B |= (1 << WGM12) |(1 << CS10) |(1 << CS12); //CTC Mode no prescaler
+    TCCR1B |= (1 << WGM12) |(1 << CS10) |(1 << CS12); //CTC Mode 64 prescaler
 
 	TCNT1 = 0;
 
@@ -69,30 +71,16 @@ void changeColor(){
 
 ISR(TIMER1_COMPA_vect){
   	uint8_t x;
-	uint8_t max_points;
-
-	if(fase == 1){
-		max_points = eeprom_read_byte(&ee_max_points);
-
-		for(x=0;x<16;x++){
-			buffer[x] = (uint32_t)0;
-		}
-
-		for(x=4;x<12;x++){
-			buffer[x] |= ((uint32_t)pgm_read_byte(&font[max_points/10][x-4])<<10);
-			buffer[x] |= ((uint32_t)pgm_read_byte(&font[max_points%10][x-4])<<14);
-			
-  		}
-	}
-		
+	uint16_t max_points;
+	
 	if(mma_get_tap()){
-		if(pause == true) 
-			pause = false;	
+		if(pause)
+			pause = false;
 		else
 			pause = true;
 	}
 
-	if(!pause || !end){
+	if(!pause){
 		//get orientation
 		x = mma_get_PL();
 
@@ -124,9 +112,12 @@ ISR(TIMER1_COMPA_vect){
 			snek_size++;
 		}
 
-		if(snek[0].pix_x<0 || snek[0].pix_x>32 || snek[0].pix_y<0 || snek[0].pix_y>16){
+		for(x=0;x<snek_size;x++){
+			if(snek[x].pix_x<0 || snek[x].pix_x>32 || snek[x].pix_y<0 || snek[x].pix_y>16){
 			end = true;
+			}
 		}
+		
 			
 	}
 
@@ -146,28 +137,36 @@ ISR(TIMER1_COMPA_vect){
 
 	if(end){
 		
-		for(x=4;x<12;x++){
-			buffer[x] |= ((uint32_t)pgm_read_byte(&font['E'][x-4])<<0);
-			buffer[x] |= ((uint32_t)pgm_read_byte(&font['n'][x-4])<<8);
-			buffer[x] |= ((uint32_t)pgm_read_byte(&font['d'][x-4])<<16);
-			
-  		}
+		points = (snek_size*fase);
 		//save biggest score
-		max_points = eeprom_read_byte(&ee_max_points);
+		max_points = eeprom_read_word(&ee_max_points);
 
-		if((snek_size*fase) > max_points)
-			eeprom_update_byte(&ee_max_points,(snek_size*fase));
-		//wait for tap
-		if(mma_get_tap())
-			end != end;
+		if(points > max_points)
+			eeprom_update_word(&ee_max_points,points);
+		
+		for(x=0;x<16;x++){
+			buffer[x] = (uint32_t)0;
+		}
 
-		fase=1;
+		for(x=4;x<12;x++){
+			
+			buffer[x] |= ((uint32_t)pgm_read_byte(&font[(points/100)+48][x-4]));
+			buffer[x] |= ((uint32_t)pgm_read_byte(&font[(points/10)+48][x-4])<<8);
+			buffer[x] |= ((uint32_t)pgm_read_byte(&font[(points%10)+48][x-4])<<16);
+  		}
+		
+		pause=true;
 	}
 
-	if(snek_size > MAX_SIZE){
+	if(snek_size >= 5){
 
-        snek_size = 3;
+        snek_size = 2;
+
 		fase++;
+
+		OCR1A = 2000-(100*fase);
+
+   		TIMSK1 |= (1<<OCIE1A);	
 
     }
 
@@ -186,7 +185,7 @@ int main(){
 
 	timer_init();
 	uart_init();
-	snek_init(10,4,4);
+	snek_init(2,4,4);
 	mma_init();
 	snek_gen_food();
 
@@ -197,8 +196,9 @@ int main(){
 
 	PORTB |= (1<<R);
 	color=G;
-
+	pause = true;
 	actual_dir = LEFT;
+
 		while(1){
 			//send rows and columns to display
 			for(y=0;y<16;y++){
