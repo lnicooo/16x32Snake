@@ -135,6 +135,7 @@ ISR(TIMER1_COMPA_vect){
   		}
 	}
 
+	//end of 
 	if(end){
 		
 		points = (snek_size*fase);
@@ -193,6 +194,27 @@ int main(){
 	stdin  = &uart_input;
 
 	printf("Hey\n");
+
+	if(!(TIMSK1&0x32)){
+		for(x=4;x<12;x++){
+			
+			buffer[x] |= ((uint32_t)pgm_read_byte(&font['E'][x-4]));
+			buffer[x] |= ((uint32_t)pgm_read_byte(&font[49][x-4])<<8);
+			
+  		}
+		cli(); 
+	}
+
+	if(mma_available()){
+
+		for(x=4;x<12;x++){
+			
+			buffer[x] |= ((uint32_t)pgm_read_byte(&font['E'][x-4]));
+			buffer[x] |= ((uint32_t)pgm_read_byte(&font[50][x-4])<<8);
+			
+  		}
+		cli(); 
+	}
 
 	PORTB |= (1<<R);
 	color=G;
