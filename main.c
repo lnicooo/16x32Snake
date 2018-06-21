@@ -4,16 +4,12 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
+#include <avr/eeprom.h>
 
 #include "LCD-fonts/8x8_horizontal_LSB_2.h"
 #include "uart/uart.h"
 #include "mma8452/mma8452.h"
 #include "snek/snek.h"
-
-volatile uint32_t buffer[16];
-
-bool pause = false;
-bool end = false;
 
 #define OE PB0
 #define R PB1
@@ -21,9 +17,15 @@ bool end = false;
 #define SCK PB4
 #define SCL PB3
 
+volatile uint32_t buffer[16];
+
+uint8_t ee_max_points EEMEM = 0;
+bool pause = false;
+bool end = false;
+
 volatile char color;
 
-volatile time=0;
+volatile uint8_t fase=1;
 
 void timer_init(){
 
@@ -65,10 +67,24 @@ void changeColor(){
   }
 }
 
-
 ISR(TIMER1_COMPA_vect){
   	uint8_t x;
+	uint8_t max_points;
 
+	if(fase == 1){
+		max_points = eeprom_read_byte(&ee_max_points);
+
+		for(x=0;x<16;x++){
+			buffer[x] = (uint32_t)0;
+		}
+
+		for(x=4;x<12;x++){
+			buffer[x] |= ((uint32_t)pgm_read_byte(&font[max_points/10][x-4])<<10);
+			buffer[x] |= ((uint32_t)pgm_read_byte(&font[max_points%10][x-4])<<14);
+			
+  		}
+	}
+		
 	if(mma_get_tap()){
 		if(pause == true) 
 			pause = false;	
@@ -114,8 +130,9 @@ ISR(TIMER1_COMPA_vect){
 			
 	}
 
+	//pause
 	else{
-
+		
 		for(x=0;x<16;x++){
 			buffer[x] = (uint32_t)0;
 		}
@@ -126,7 +143,7 @@ ISR(TIMER1_COMPA_vect){
 			
   		}
 	}
-	
+
 	if(end){
 		
 		for(x=4;x<12;x++){
@@ -135,13 +152,26 @@ ISR(TIMER1_COMPA_vect){
 			buffer[x] |= ((uint32_t)pgm_read_byte(&font['d'][x-4])<<16);
 			
   		}
+		//save biggest score
+		max_points = eeprom_read_byte(&ee_max_points);
+
+		if((snek_size*fase) > max_points)
+			eeprom_update_byte(&ee_max_points,(snek_size*fase));
+		//wait for tap
+		if(mma_get_tap())
+			end != end;
+
+		fase=1;
 	}
 
 	if(snek_size > MAX_SIZE){
+
         snek_size = 3;
 		fase++;
 
     }
+
+	
 }
 
 
@@ -162,8 +192,6 @@ int main(){
 
 	stdout = &uart_output;
 	stdin  = &uart_input;
-
-
 
 	printf("Hey\n");
 
