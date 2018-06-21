@@ -98,9 +98,9 @@ void mma_setpl(){
 
 void mma_settap(){
     //set tap on z axis
-    mma_write_register(PULSE_THSZ,0x31);//2g
+    mma_write_register(PULSE_THSZ,0x30);//2g
     //set double tap on z axis
-    mma_write_register(PULSE_CFG, 0x70);
+    mma_write_register(PULSE_CFG, 0x60);
     // 800hz 
     mma_write_register(PULSE_TMLT,0x30);
     mma_write_register(PULSE_LTCY,0xA0);
